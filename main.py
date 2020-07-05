@@ -1,52 +1,89 @@
-import telebot
-from telebot import types
-import requests as r
-from bs4 import BeautifulSoup as BS
-import constants
+from aiogram import Bot, Dispatcher, executor, types
+from constants import token
+import logging
+from sqlscript import SQLscript
+from parse import currency, usd, eur, btc
+import asyncio
+from datetime import datetime
 
-usd = "https://www.google.com/search?q=курс+доллара&oq=rehc+&aqs=chrome.4.69i57j69i59l3j0l4.3491j1j7&sourceid=chrome&ie=UTF-8"
-eur = "https://www.google.com/search?q=курс+евро&oq=rehc+tdhj&aqs=chrome.1.69i57j0l7.3337j1j7&sourceid=chrome&ie=UTF-8"
-btc = "https://www.google.com/search?sxsrf=ALeKk00wereP6f5lSOJitVaaHdgafDgl8A%3A1585588151469&ei=tyeCXr6XHIGRmwWC7rqABQ&q=btc+rate+usd&oq=btc+rate+&gs_lcp=CgZwc3ktYWIQAxgAMgwIABAUEIcCEEYQggIyBQgAEMsBMgUIABDLATIFCAAQywEyBQgAEMsBMgUIABDLATIFCAAQywEyBQgAEMsBMgUIABDLATIFCAAQywE6BAgAEEc6BwgjEOoCECc6BAgjECc6BQgAEIMBOgIIADoECAAQQzoHCAAQgwEQQzoMCAAQgwEQQxBGEIICOgoIABCDARAUEIcCOgcIABAUEIcCOgQIABAKUKGKLFibuCxgiMUsaAJwAXgAgAGIAYgB1AmSAQQwLjEwmAEAoAEBqgEHZ3dzLXdperABCg&sclient=psy-ab"
+logging.basicConfig(level=logging.INFO)
 
+bot = Bot(token)
+dp = Dispatcher(bot)
 
-def currency(ccy):
-    url = r.get(ccy)
-    soup = BS(url.content, "html.parser")
-    res = soup.find_all("div", class_="BNeawe iBp4i AP7Wnd")
-    return str(res[1])
+db = SQLscript("BotDb")
 
+markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+markup.row("USD", "EUR", "BTC")
+markup.row("Добавить валюту")
 
-bot = telebot.TeleBot(constants.token)
-
-markup = types.ReplyKeyboardMarkup(True, True)
-btn1 = types.KeyboardButton("USD")
-btn2 = types.KeyboardButton("Euro")
-btn3 = types.KeyboardButton("BTC")
-markup.add(btn1, btn2, btn3)
-
-
-@bot.message_handler(commands=["start"])
-def start_answer(message):
-    bot.send_message(message.chat.id, "Привет! Это CurrencyBot.\n Выберите валюту, курс которой вы хотите посмотреть",
-                     reply_markup=markup)
+time_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+time_markup.row("1 час")
+time_markup.row("2 часа")
+time_markup.row("12 часов")
+time_markup.row("24 часа")
 
 
-@bot.message_handler(commands=["help"])
-def help_answer(message):
-    bot.send_message(message.chat.id, "Возникли вопросы?\n Пишите: @Vasily_Esipenko")
+@dp.message_handler(commands=["start"])
+async def start_answer(message: types.Message):
+    await message.answer("Привет, это CurrencyBot!\nЗдесь вы можете узнать курсы валют и биткоина")
+    await message.answer("Выберите валюту:", reply_markup=markup)
 
 
-@bot.message_handler(content_types=["text"])
-def text_answer(message):
+@dp.message_handler(commands=["help"])
+async def help_answer(message: types.Message):
+    await message.answer("Возникли вопросы?\nПишите сюда: @Vasily_Esipenko")
+
+
+@dp.message_handler(commands=["notify"])
+async def notify(message: types.Message):
+    if not db.subscriber_exists(message.from_user.id):
+        db.add_subscriber(message.from_user.id, True)
+    else:
+        db.update_subscription(message.from_user.id, True)
+    await message.answer("Вы подписались на ежедневные уведомления о курсах валют!\nВы можете отписаться в любой момент с помощью команды /disable")
+    await asyncio.sleep(0.5)
+    await message.answer("Выберите время для уведомлений:", reply_markup=time_markup)
+
+@dp.message_handler(commands=["disable"])
+async def disable(message: types.Message):
+    if not db.subscriber_exists(message.from_user.id):
+        db.add_subscriber(message.from_user.id, False)
+        await message.answer("Ваши уведомления итак отключены.")
+    else:
+        db.update_subscription(message.from_user.id, False)
+        await message.answer("Вы успешно отписались от уведомлений!")
+
+
+@dp.message_handler(content_types=["text"])
+async def text_answer(message: types.Message):
+    global value
+    global time
     if message.text == "USD":
-        bot.send_chat_action(message.chat.id, "typing")
-        bot.send_message(message.chat.id, "Курс доллара: " + currency(usd)[33:38])
-    elif message.text == "Euro":
-        bot.send_chat_action(message.chat.id, "typing")
-        bot.send_message(message.chat.id, "Курс евро: " + currency(eur)[33:38])
+        await message.answer(currency(usd)[33:38] + "₽")
+    elif message.text == "EUR":
+        await message.answer(currency(eur)[33:38] + "₽")
     elif message.text == "BTC":
-        bot.send_chat_action(message.chat.id, "typing")
-        bot.send_message(message.chat.id, "Курс BTC: " + currency(btc)[33:41] + "$")
+        await message.answer(currency(btc)[33:41] + "$")
+    elif message.text == "Добавить валюту":
+        await message.answer("Выберите валюту из списка:")
+    elif message.text == "1 час" or message.text == "2 часа" or message.text == "12 часов" or message.text == "24 часа":
+        await message.answer("Вы успешно выбрали время для получения уведомлений")
+
+        value = message.text.split(" ")
+        time = int(value[0])
+        await notification(time, message.from_user.id)
+    else:
+        await message.answer("Извините, я вас не понял :(\nПопробуйте еще раз")
 
 
-bot.polling()
+async def notification(wait_for, user_id):
+    while True:
+        await asyncio.sleep(wait_for)
+        for i in db.get_subscriptions():
+            if i[1] == str(user_id) and i[2] == True:
+                await bot.send_message(user_id, f"Курс валют на сегодня\n1. Доллар: {currency(usd)[33:38]}₽\n2. Евро: {currency(eur)[33:38]}₽\n3. Биткоин: {currency(btc)[33:41]}$")
+
+
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=False)
