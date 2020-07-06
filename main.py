@@ -17,11 +17,26 @@ markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 markup.row("USD", "EUR", "BTC")
 markup.row("Добавить валюту")
 
-time_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-time_markup.row("1 час")
-time_markup.row("2 часа")
-time_markup.row("12 часов")
-time_markup.row("24 часа")
+time_markup = types.InlineKeyboardMarkup()
+
+one = types.InlineKeyboardButton("1 час", callback_data="1")
+two = types.InlineKeyboardButton("2 часа", callback_data="2")
+twelve = types.InlineKeyboardButton("12 часов", callback_data="12")
+twentyfour = types.InlineKeyboardButton("24 часа", callback_data="24")
+
+time_markup.add(one)
+time_markup.add(two)
+time_markup.add(twelve)
+time_markup.add(twentyfour)
+
+
+@dp.callback_query_handler(lambda x: x.data)
+async def button1_process(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, "Вы успешно выбрали время для получения уведомлений")
+
+    time = int(callback_query.data) * 3
+    await notification(time, callback_query.from_user.id)
 
 
 @dp.message_handler(commands=["start"])
@@ -57,8 +72,6 @@ async def disable(message: types.Message):
 
 @dp.message_handler(content_types=["text"])
 async def text_answer(message: types.Message):
-    global value
-    global time
     if message.text == "USD":
         await message.answer(currency(usd)[33:38] + "₽")
     elif message.text == "EUR":
@@ -66,13 +79,7 @@ async def text_answer(message: types.Message):
     elif message.text == "BTC":
         await message.answer(currency(btc)[33:41] + "$")
     elif message.text == "Добавить валюту":
-        await message.answer("Выберите валюту из списка:")
-    elif message.text == "1 час" or message.text == "2 часа" or message.text == "12 часов" or message.text == "24 часа":
-        await message.answer("Вы успешно выбрали время для получения уведомлений")
-
-        value = message.text.split(" ")
-        time = int(value[0])
-        await notification(time, message.from_user.id)
+        await message.answer("В разработке...")
     else:
         await message.answer("Извините, я вас не понял :(\nПопробуйте еще раз")
 
