@@ -35,7 +35,7 @@ async def button1_process(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы успешно выбрали время для получения уведомлений")
 
-    time = int(callback_query.data) * 3
+    time = int(callback_query.data) * 3600
     await notification(time, callback_query.from_user.id)
 
 
@@ -73,14 +73,19 @@ async def disable(message: types.Message):
 @dp.message_handler(content_types=["text"])
 async def text_answer(message: types.Message):
     if message.text == "USD":
+        await bot.send_chat_action(message.from_user.id, "typing")
         await message.answer(currency(usd)[33:38] + "₽")
     elif message.text == "EUR":
+        await bot.send_chat_action(message.from_user.id, "typing")
         await message.answer(currency(eur)[33:38] + "₽")
     elif message.text == "BTC":
+        await bot.send_chat_action(message.from_user.id, "typing")
         await message.answer(currency(btc)[33:41] + "$")
     elif message.text == "Добавить валюту":
+        await bot.send_chat_action(message.from_user.id, "typing")
         await message.answer("В разработке...")
     else:
+        await bot.send_chat_action(message.from_user.id, "typing")
         await message.answer("Извините, я вас не понял :(\nПопробуйте еще раз")
 
 
