@@ -23,5 +23,13 @@ class SQLscript:
         with self.connection:
             return self.cursor.execute("UPDATE `subscriptions` SET `status` = ? WHERE `user_id` = ?", (status, user_id))
 
+    def add_lang(self, user_id, lang):
+        with self.connection:
+            return self.cursor.execute("INSERT INTO `subscriptions` (`user_id`, `lang`) VALUES (?,?)", (user_id, lang))
+
+    def update_lang(self, user_id, lang):
+        with self.connection:
+            return self.cursor.execute("UPDATE `subscriptions` SET `lang` = ? WHERE `user_id` = ?", (lang, user_id))
+
     def close(self):
         self.connection.close()
